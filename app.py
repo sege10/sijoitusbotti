@@ -1,13 +1,3 @@
-import subprocess
-import sys
-
-# Pakotetaan tarvittavien kirjastojen asennus taustalla lennosta
-try:
-    import crewai
-    import yfinance
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "crewai==0.28.8", "langchain-openai", "yfinance", "pydantic==2.7.1"])
-
 import streamlit as st
 import yfinance as yf
 from crewai import Agent, Crew, Process, Task
@@ -29,7 +19,7 @@ if st.button("Käynnistä tekoälyanalyysi"):
 
         # Työkalu markkinadatan hakuun
         @tool("Hae markkinadata")
-        def hae_markkinadata(ticker: str) -> str:
+        def hae_marketdata(ticker: str) -> str:
             ticker_data = yf.Ticker(ticker)
             hist = ticker_data.history(period="14d")
             info = ticker_data.info
@@ -39,8 +29,8 @@ if st.button("Käynnistä tekoälyanalyysi"):
         # Agentit
         data_agent = Agent(
             role="Markkinadata-analyytikko",
-            goal="Hakea ja analyzeerata reaaliaikaista dataa.",
-            tools=[hae_markkinadata],
+            goal="Hakea ja analysoida reaaliaikaista dataa.",
+            tools=[hae_marketdata],
             verbose=True,
             llm=llm
         )
