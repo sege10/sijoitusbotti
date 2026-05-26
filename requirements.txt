@@ -1,5 +1,6 @@
 streamlit
 crewai
 crewai-tools
-yfinance
 langchain-openai
+requests
+google-search-results
