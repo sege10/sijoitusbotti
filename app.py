@@ -1,59 +1,48 @@
 import streamlit as st
-import yfinance as yf
+import os
+
+# Pakotetaan Streamlit käyttämään Secrets-avainta CrewAI:lle
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
 from crewai import Agent, Crew, Process, Task
-from crewai.tools import tool
-from langchain_openai import ChatOpenAI
 
 st.title("🤖 SEGE10:n AI-Sijoitusagentti")
 st.write("Tämä tekoälytiimi analysoi markkinadataa puolestasi.")
 
-# Käyttöliittymän hakukenttä ja nappi
 kohde = st.text_input("Syötä osakkeen tai krypton tunnus (esim. AAPL tai BTC-USD):", "BTC-USD")
 
 if st.button("Käynnistä tekoälyanalyysi"):
     st.info(f"Agentit aloittavat kohteen {kohde} tutkimisen. Odota hetki...")
     
     try:
-        # Haetaan tekoälyavain taustajärjestelmästä
-        llm = ChatOpenAI(model="gpt-4o")
-
-        # Työkalu markkinadatan hakuun
-        @tool("Hae markkinadata")
-        def hae_marketdata(ticker: str) -> str:
-            ticker_data = yf.Ticker(ticker)
-            hist = ticker_data.history(period="14d")
-            info = ticker_data.info
-            nykyinen_hinta = info.get("currentPrice", info.get("regularMarketPrice", "Ei saatavilla"))
-            return f"Nykyinen hinta: {nykyinen_hinta}\n\nViimeisimmät sulkemishinnat:\n{hist['Close'].to_string()}"
-
-        # Agentit
+        # Agentit (Uusi CrewAI käyttää oletuksena gpt-4o-modelia, kunhan API-avain on ympäristössä)
         data_agent = Agent(
             role="Markkinadata-analyytikko",
-            goal="Hakea ja analysoida reaaliaikaista dataa.",
-            tools=[hae_marketdata],
-            verbose=True,
-            llm=llm
+            goal=f"Hakea ja analysoida kohteen {kohde} reaaliaikaista hintadataa.",
+            backstory="Olet kokenut analyytikko, joka löytää datasta olennaiset trendit.",
+            verbose=True
         )
         manager_agent = Agent(
             role="Salkunhoitaja",
-            goal="Tehdä sijoitussuositus.",
-            verbose=True,
-            llm=llm
+            goal="Tehdä selkeä sijoitussuositus.",
+            backstory="Olet varovainen salkunhoitaja, joka perustaa päätöksensä vain faktoihin.",
+            verbose=True
         )
 
         # Tehtävät
         task1 = Task(
-            description=f"Käytä työkalua kohteelle {kohde}. Analysoi hintatrendi.",
-            expected_output="Raportti trendistä.",
+            description=f"Analysoi kohteen {kohde} viimeisimmät hintamuutokset netistä.",
+            expected_output="Raportti hintatrendistä.",
             agent=data_agent
         )
         task2 = Task(
-            description=f"Tee sijoitussuositus (OSTA/MYY/ODOTA) kohteelle {kohde} data-agentin raportin pohjalta.",
-            expected_output="Lopullinen suositus perusteluineen.",
+            description=f"Tee sijoitussuositus (OSTA/MYY/ODOTA) kohteelle {kohde} saamasi raportin pohjalta.",
+            expected_output="Lopullinen suositus perusteluineen suomeksi.",
             agent=manager_agent
         )
 
-        # Crew-tiimi kasaan ja käyntiin
+        # Tiimi kasaan
         sijoitus_tiimi = Crew(
             agents=[data_agent, manager_agent],
             tasks=[task1, task2],
@@ -62,7 +51,7 @@ if st.button("Käynnistä tekoälyanalyysi"):
         
         tulos = sijoitus_tiimi.kickoff()
         st.success("Analyysi valmis!")
-        st.write(tulos)
+        st.write(str(tulos))
         
     except Exception as e:
-        st.error(f"Tapahtui virhe. Tarkista, että olet lisännyt OpenAI API-avaimen asetuksiin. Virhe: {e}")
+        st.error(f"Tapahtui virhe. Varmista, että Secrets-asetuksissa on oikea OpenAI-avain. Virhe: {e}")
