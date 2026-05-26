@@ -5,60 +5,49 @@ from bs4 import BeautifulSoup
 from crewai import Agent, Crew, Task
 from crewai_tools import SerperDevTool
 
-st.set_page_config(page_title="SEGE10 AI-Salkunhoitaja", layout="wide")
+# Sivun perusasetukset
+st.set_page_config(page_title="SEGE10 AI-Keskus", layout="wide")
 st.sidebar.title("🤖 SEGE10 AI-Keskus")
-valinta = st.sidebar.radio("Työkalu:", ["📈 Sijoitusagentti", "💼 Salkunhoitaja", "⛽ Bensavahti"])
+st.sidebar.write("📅 Päivämäärä: 26.5.2026")
+valinta = st.sidebar.radio("Valitse työkalu:", ["📈 Sijoitusagentti", "⚽ Pitkäveto-agentti", "⛽ Bensavahti", "💼 Salkunhoitaja"])
 
-# --- SALKUNHOITAJA-SIMULAATTORI ---
-if valinta == "💼 Salkunhoitaja":
-    st.title("💼 AI-Salkunhoitaja (Simulaattori)")
-    st.write("Toimin kuin pankkisi sijoitusneuvoja. Annan sinulle konkreettisen allokaatioehdotuksen.")
-    
-    riski = st.select_slider("Valitse riskinsietokykysi:", ["Varovainen (Korkoa/Indeksiä)", "Tasapainoinen (60/40)", "Kasvuhakuinen (Osakkeet/Tech)"])
-    summa = st.number_input("Sijoitettava summa (€):", value=5000, step=500)
-    
-    if st.button("Luo salkkuehdotus"):
-        with st.spinner("Analysoidaan markkinaa ja rakennetaan salkkua..."):
-            salkunhoitaja = Agent(
-                role="Pankin Senior Salkunhoitaja",
-                goal="Rakentaa optimaalinen ja hajautettu salkku annetulla riskitasolla.",
-                backstory="Olet kokenut salkunhoitaja. Käytät sijoitusstrategioissa modernia portfolioteoriaa. Ehdotat vain todellisia omaisuusluokkia (esim. S&P 500, Valtionlainat, Teknologiaosakkeet).",
-                verbose=True
-            )
-            
-            task = Task(
-                description=f"""Asiakkaan sijoitussumma on {summa} euroa ja riskitaso on {riski}.
-                1. Määritä prosentuaalinen jako eri omaisuusluokkien kesken.
-                2. Anna 4-5 konkreettista esimerkkiä sijoituskohteista (esim. ETF-rahastot, indeksit).
-                3. Perustele, miksi tämä allokaatio toimii valitsemallasi riskitasolla.
-                4. Listaa sijoitusten painotukset (€-määräisesti).""",
-                expected_output="Asiantunteva salkkusuunnitelma perusteluineen.",
-                agent=salkunhoitaja
-            )
-            
-            crew = Crew(agents=[salkunhoitaja], tasks=[task], verbose=True)
-            tulos = crew.kickoff()
-            st.markdown("---")
-            st.write(str(tulos))
-            st.info("Huom: Tämä on simulaatio. Ennen oikeita sijoituspäätöksiä, keskustele aina pankkisi sijoitusasiantuntijan kanssa.")
+# --- 1. SIJOITUSAGENTTI ---
+if valinta == "📈 Sijoitusagentti":
+    st.title("📈 Sijoitusagentti")
+    kohde = st.text_input("Analysoitava kohde (esim. Nokia, Neste, BTC):")
+    if st.button("Käynnistä analyysi"):
+        a = Agent(role="Analyytikko", goal="Anna tunnusluvut ja sijoitussuositus.", tools=[SerperDevTool()])
+        t = Task(description=f"Etsi {kohde}. Ilmoita sen kurssi, P/E-luku ja anna perusteltu suositus.", expected_output="Analyysiraportti.", agent=a)
+        st.write(str(Crew(agents=[a], tasks=[t]).kickoff()))
 
-# --- BENSAVAHTI (Nopea) ---
+# --- 2. PITKÄVETO-AGENTTI ---
+elif valinta == "⚽ Pitkäveto-agentti":
+    st.title("⚽ AI-Pitkävetoagentti")
+    ottelu = st.text_input("Syötä ottelu (esim. Suomi - Sveitsi):")
+    kertoimet = st.text_input("Syötä kertoimet (esim. 1: 2.50, X: 3.30, 2: 2.90):")
+    if st.button("Käynnistä analyysi"):
+        agent = Agent(role="Ammattivedonlyöjä", goal="Valita voittaja ja perustella analyysi.", tools=[SerperDevTool()])
+        task = Task(description=f"Ottelu: {ottelu}, Kertoimet: {kertoimet}. Analysoi, valitse 1, X tai 2 ja perustele.", expected_output="Pelivalinta ja perustelut.", agent=agent)
+        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+
+# --- 3. BENSAVAHTI ---
 elif valinta == "⛽ Bensavahti":
     st.title("⛽ Bensavahti (Helsinki)")
-    if st.button("Hae päivän hinnat"):
+    if st.button("Hae hinnat"):
         try:
-            res = requests.get("https://www.polttoaine.net/Helsinki", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            res = requests.get("https://www.polttoaine.net/Helsinki", headers={"User-Agent": "Mozilla/5.0"})
             soup = BeautifulSoup(res.text, 'html.parser')
             t = soup.find("table", {"id": "LisaaHintojaTable"})
             data = [{"Asema": r.find_all("td")[0].text.strip(), "95E10": r.find_all("td")[2].text.strip(), "Diesel": r.find_all("td")[4].text.strip()} for r in t.find_all("tr")[2:12]]
             st.table(pd.DataFrame(data))
         except: st.error("Ei yhteyttä palveluun.")
 
-# --- SIJOITUSAGENTTI (Konkreettinen) ---
-elif valinta == "📈 Sijoitusagentti":
-    st.title("📈 Sijoitusagentti")
-    kohde = st.text_input("Analysoitava kohde (esim. Nokia, Neste):")
-    if st.button("Analysoi"):
-        a = Agent(role="Analyytikko", goal="Anna tunnusluvut ja osta/myy suositus.", tools=[SerperDevTool()])
-        t = Task(description=f"Etsi {kohde}. Ilmoita sen kurssi, P/E-luku ja anna perusteltu suositus.", expected_output="Analyysiraportti.", agent=a)
-        st.write(str(Crew(agents=[a], tasks=[t]).kickoff()))
+# --- 4. SALKUNHOITAJA ---
+elif valinta == "💼 Salkunhoitaja":
+    st.title("💼 AI-Salkunhoitaja (Simulaattori)")
+    riski = st.select_slider("Riski:", ["Varovainen", "Tasapainoinen", "Kasvuhakuinen"])
+    summa = st.number_input("Summa (€):", value=5000)
+    if st.button("Luo salkkuehdotus"):
+        agent = Agent(role="Salkunhoitaja", goal="Rakenna salkku.", backstory="Olet pankin asiantuntija.")
+        task = Task(description=f"Luo {riski}-salkku {summa} eurolle. 4-5 kohdetta ja eurosummat.", expected_output="Salkkuehdotus.", agent=agent)
+        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
