@@ -8,34 +8,37 @@ if "OPENAI_API_KEY" in st.secrets:
 from crewai import Agent, Crew, Process, Task
 import yfinance as yf
 
-# PARANNETTU HAKU: Hakee livenä hinnan ja muuntaa sen euroiksi
+# POMMINVARMA HAKU JOKA OTTAA TÄMÄN PÄIVÄN VIIMEISIMMÄN MINUUTTIHINNAN
 def hae_porssitiedot_euroina(ticker):
     try:
-        data = yf.Ticker(ticker)
-        info = data.info
-        current_price_usd = info.get('regularMarketPrice') or info.get('currentPrice')
+        # Haetaan kohteen aivan tuoreimmat minuutin välein päivittyvät tiedot tältä päivältä
+        ticker_data = yf.Ticker(ticker)
+        hist_1d = ticker_data.history(period="1d", interval="1m")
         
-        # Haetaan historiatiedot lyhyttä trendiä varten
-        hist = data.history(period="7d")
-        if current_price_usd is None:
-            current_price_usd = hist['Close'].iloc[-1]
+        if hist_1d.empty:
+            # Jos kohde on viikonloppuna kiinni (esim. osakkeet), otetaan viimeisin sulkemishinta
+            hist_1d = ticker_data.history(period="5d")
             
-        # Haetaan EUR/USD valuuttakurssi muunnosta varten
-        eurusd_data = yf.Ticker("EURUSD=X")
-        # Jos haku epäonnistuu, käytetään suuntaa-antavaa kiinteää kurssia 1.09
-        eurusd_kurssi = eurusd_data.info.get('regularMarketPrice') or 1.09
+        current_price_usd = hist_1d['Close'].iloc[-1]
         
-        # Muunnetaan dollarit euroiksi (jaetaan dollarit kurssilla)
+        # Haetaan euron ja dollarin suhde tältä päivältä
+        eurusd_data = yf.Ticker("EURUSD=X")
+        eurusd_hist = eurusd_data.history(period="1d")
+        eurusd_kurssi = eurusd_hist['Close'].iloc[-1] if not eurusd_hist.empty else 1.09
+        
+        # Muunnetaan aito dollarimäärä euroiksi
         current_price_eur = current_price_usd / eurusd_kurssi
         
-        alkuhinta_usd = hist['Close'].iloc[0]
+        # Haetaan 7 päivän historia suuntaa varten
+        hist_7d = ticker_data.history(period="7d")
+        alkuhinta_usd = hist_7d['Close'].iloc[0] if not hist_7d.empty else current_price_usd
         muutos = ((current_price_usd - alkuhinta_usd) / alkuhinta_usd) * 100
         
-        return f"Kohteen {ticker} LIVE-HINTA: {current_price_eur:,.2f} EUR (valuuttakurssilla {eurusd_kurssi:.4f}). Viimeisen 7 päivän muutos: {muutos:.2f}%."
+        return f"Kohteen {ticker} AITO LIVE-HINTA JUURI NYT: {current_price_eur:,.2f} EUR. Viimeisen 7 päivän muutos: {muutos:.2f}%."
     except Exception as e:
-        return f"Virhe haettaessa dataa kohteelle {ticker}: {e}"
+        return f"Virhe haettaessa reaaliaikaista dataa kohteelle {ticker}: {e}"
 
-# Tyylitellään Streamlit-sivua hieman siistimmäksi
+# Tyylitellään Streamlit-sivua
 st.set_page_config(page_title="AI-Sijoitusagentti", page_icon="🤖")
 st.title("🤖 SEGE10:n AI-Sijoitusagentti")
 st.write("Tämä tekoälytiimi analysoi reaaliaikaista pörssidataa ja antaa suosituksia euroissa.")
@@ -53,7 +56,7 @@ if st.button("Käynnistä tekoälyanalyysi"):
         data_agent = Agent(
             role="Markkinadata-analyytikko",
             goal=f"Analysoida annettua reaaliaikaista pörssidataa kohteesta {kohde}.",
-            backstory=f"Olet tarkka analyytikko. Saat käyttöösi tämän REAALIAIKAISEN datan euroina: {reaaliaikainen_data}. Tehtäväsi on tiivistää hinta ja kehitys.",
+            backstory=f"Olet tarkka analyytikko. Saat käyttöösi tämän REAALIAIKAISEN datan euroina: {reaaliaikainen_data}. Tehtäväsi on ottaa talteen aito live-hinta ja kehitys.",
             verbose=True
         )
         
@@ -64,7 +67,7 @@ if st.button("Käynnistä tekoälyanalyysi"):
             verbose=True
         )
 
-        # Tehtävät – pakotetaan haluttu vastausmuoto
+        # Tehtävät
         task1 = Task(
             description=f"Ota talteen annettu eurohinta kohteesta {kohde} ja kuvaile sen suunta.",
             expected_output="Raportti, jossa mainitaan kohteen aito hinta euroina ja viikon muutos.",
@@ -72,9 +75,9 @@ if st.button("Käynnistä tekoälyanalyysi"):
         )
         task2 = Task(
             description=f"""Päätä sijoitussuositus kohteelle {kohde}. 
-            Sinun on PAKKO aloittaa lopullinen vastauksesi täsmälleen seuraavalla muodolla (korvaa X:t oikeilla tiedoilla):
+            Sinun on PAKKO aloittaa lopullinen vastauksesi täsmälleen seuraavalla muodolla (älä pyöristä tuhansia pois):
             
-            **LIVE HINTA:** X,XX EUR
+            **LIVE HINTA:** [Kirjoita tähän analyytikon antama aito hinta] EUR
             **SUOSITUS:** [Kirjoita tähän jokin näistä: OSTA / MYY / ODOTA / PIDÄ]
             
             Tämän alun jälkeen kirjoita selkeät, suomenkieliset perustelut päätöksellesi.""",
@@ -91,8 +94,6 @@ if st.button("Käynnistä tekoälyanalyysi"):
         
         tulos = sijoitus_tiimi.kickoff()
         st.success("Analyysi valmis!")
-        
-        # Tulostetaan agentin vastaus
         st.write(str(tulos))
         
     except Exception as e:
