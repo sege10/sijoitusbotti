@@ -1,3 +1,13 @@
+import subprocess
+import sys
+
+# Pakotetaan tarvittavien kirjastojen asennus taustalla lennosta
+try:
+    import crewai
+    import yfinance
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "crewai==0.28.8", "langchain-openai", "yfinance", "pydantic==2.7.1"])
+
 import streamlit as st
 import yfinance as yf
 from crewai import Agent, Crew, Process, Task
@@ -5,7 +15,7 @@ from crewai.tools import tool
 from langchain_openai import ChatOpenAI
 
 st.title("🤖 SEGE10:n AI-Sijoitusagentti")
-st.write("Tämä tekoälytiimi analysoi markkinadataa ja uutisia puolestasi.")
+st.write("Tämä tekoälytiimi analysoi markkinadataa puolestasi.")
 
 # Käyttöliittymän hakukenttä ja nappi
 kohde = st.text_input("Syötä osakkeen tai krypton tunnus (esim. AAPL tai BTC-USD):", "BTC-USD")
