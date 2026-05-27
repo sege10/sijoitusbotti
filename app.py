@@ -5,49 +5,59 @@ from bs4 import BeautifulSoup
 from crewai import Agent, Crew, Task
 from crewai_tools import SerperDevTool
 
-# Sivun perusasetukset
-st.set_page_config(page_title="SEGE10 AI-Keskus", layout="wide")
-st.sidebar.title("🤖 SEGE10 AI-Keskus")
-st.sidebar.write("📅 Päivämäärä: 26.5.2026")
-valinta = st.sidebar.radio("Valitse työkalu:", ["📈 Sijoitusagentti", "⚽ Pitkäveto-agentti", "⛽ Bensavahti", "💼 Salkunhoitaja"])
+# 1. BENSAVAHTI (Uusimaa-laajennus)
+def hae_bensahinnat_uusimaa():
+    try:
+        # Polttoaine.netin Uusimaa-sivu
+        url = "https://www.polttoaine.net/Uusimaa"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        taulukko = soup.find("table", {"id": "LisaaHintojaTable"})
+        data = []
+        for r in taulukko.find_all("tr")[2:20]: # 18 tuoreinta Uudeltamaalta
+            s = r.find_all("td")
+            if len(s) > 4:
+                data.append({"Asema": s[0].text.strip(), "95E10": s[2].text.strip(), "Diesel": s[4].text.strip()})
+        return pd.DataFrame(data)
+    except: return None
 
-# --- 1. SIJOITUSAGENTTI ---
-if valinta == "📈 Sijoitusagentti":
+# 2. APP-RAKENNE
+st.set_page_config(page_title="SEGE:n AI-Keskus", layout="wide")
+valinta = st.sidebar.radio("Työkalu:", ["📈 Sijoitusagentti", "⚽ Pitkäveto", "⛽ Bensavahti (Uusimaa)", "💼 Salkunhoitaja"])
+
+if valinta == "⛽ Bensavahti (Uusimaa)":
+    st.title("⛽ Bensavahti: Uusimaa")
+    if st.button("Päivitä Uudenmaan hinnat"):
+        df = hae_bensahinnat_uusimaa()
+        if df is not None: st.table(df)
+        else: st.error("Ei yhteyttä polttoaine.netiin.")
+
+elif valinta == "📈 Sijoitusagentti":
     st.title("📈 Sijoitusagentti")
-    kohde = st.text_input("Analysoitava kohde (esim. Nokia, Neste, BTC):")
-    if st.button("Käynnistä analyysi"):
-        a = Agent(role="Analyytikko", goal="Anna tunnusluvut ja sijoitussuositus.", tools=[SerperDevTool()])
-        t = Task(description=f"Etsi {kohde}. Ilmoita sen kurssi, P/E-luku ja anna perusteltu suositus.", expected_output="Analyysiraportti.", agent=a)
-        st.write(str(Crew(agents=[a], tasks=[t]).kickoff()))
-
-# --- 2. PITKÄVETO-AGENTTI ---
-elif valinta == "⚽ Pitkäveto-agentti":
-    st.title("⚽ AI-Pitkävetoagentti")
-    ottelu = st.text_input("Syötä ottelu (esim. Suomi - Sveitsi):")
-    kertoimet = st.text_input("Syötä kertoimet (esim. 1: 2.50, X: 3.30, 2: 2.90):")
-    if st.button("Käynnistä analyysi"):
-        agent = Agent(role="Ammattivedonlyöjä", goal="Valita voittaja ja perustella analyysi.", tools=[SerperDevTool()])
-        task = Task(description=f"Ottelu: {ottelu}, Kertoimet: {kertoimet}. Analysoi, valitse 1, X tai 2 ja perustele.", expected_output="Pelivalinta ja perustelut.", agent=agent)
-        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
-
-# --- 3. BENSAVAHTI ---
-elif valinta == "⛽ Bensavahti":
-    st.title("⛽ Bensavahti (Helsinki)")
-    if st.button("Hae hinnat"):
+    kohde = st.text_input("Kohde:")
+    if st.button("Analysoi"):
         try:
-            res = requests.get("https://www.polttoaine.net/Helsinki", headers={"User-Agent": "Mozilla/5.0"})
-            soup = BeautifulSoup(res.text, 'html.parser')
-            t = soup.find("table", {"id": "LisaaHintojaTable"})
-            data = [{"Asema": r.find_all("td")[0].text.strip(), "95E10": r.find_all("td")[2].text.strip(), "Diesel": r.find_all("td")[4].text.strip()} for r in t.find_all("tr")[2:12]]
-            st.table(pd.DataFrame(data))
-        except: st.error("Ei yhteyttä palveluun.")
+            agent = Agent(role="Analyytikko", goal="Analysoi kohde.", backstory="Olet ammattilainen.", tools=[SerperDevTool()])
+            task = Task(description=f"Etsi {kohde} kurssi ja analysoi.", expected_output="Lyhyt raportti.", agent=agent)
+            st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+        except Exception as e: st.error(f"Agentti-virhe: {e}. (Tarkista API-avaimet!)")
 
-# --- 4. SALKUNHOITAJA ---
+elif valinta == "⚽ Pitkäveto":
+    st.title("⚽ Pitkäveto")
+    o = st.text_input("Ottelu:")
+    if st.button("Analysoi"):
+        try:
+            agent = Agent(role="Vedonlyöjä", goal="Valitse voittaja.", backstory="Analysoija.", tools=[SerperDevTool()])
+            task = Task(description=f"Ottelu {o} analyysi.", expected_output="Tulos.", agent=agent)
+            st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+        except Exception as e: st.error("Pitkäveto-agentti tarvitsee toimivat API-avaimet.")
+
 elif valinta == "💼 Salkunhoitaja":
-    st.title("💼 AI-Salkunhoitaja (Simulaattori)")
+    st.title("💼 Salkunhoitaja")
+    # Salkunhoitaja toimii ilman ulkoisia API-hakuja, siksi se on vakaa
     riski = st.select_slider("Riski:", ["Varovainen", "Tasapainoinen", "Kasvuhakuinen"])
-    summa = st.number_input("Summa (€):", value=5000)
-    if st.button("Luo salkkuehdotus"):
-        agent = Agent(role="Salkunhoitaja", goal="Rakenna salkku.", backstory="Olet pankin asiantuntija.")
-        task = Task(description=f"Luo {riski}-salkku {summa} eurolle. 4-5 kohdetta ja eurosummat.", expected_output="Salkkuehdotus.", agent=agent)
+    if st.button("Luo salkku"):
+        agent = Agent(role="Salkunhoitaja", goal="Rakenna salkku.", backstory="Pankin asiantuntija.")
+        task = Task(description=f"Luo {riski}-salkku.", expected_output="Salkku.", agent=agent)
         st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
