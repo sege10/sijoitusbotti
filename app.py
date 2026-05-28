@@ -77,11 +77,26 @@ elif valinta == "⚽ Veikkaus":
         task = Task(description=f"Analysoi ottelu {ottelu} ja anna pelivalinta (1X2).", expected_output="Analyysi.", agent=agent)
         st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
 
-# --- 5. BENSAVAHTI ---
+# --- 5. BENSAVAHTI (Agentti + Linkki) ---
 elif valinta == "⛽ Bensavahti":
     st.title("⛽ Bensavahti")
-    if st.button("Hae päivän trendit"):
-        agent = Agent(role="Bensavahti", goal="Tarkista bensan hinnan kehitys.", backstory="Analyytikko.", tools=[search_tool])
-        task = Task(description="Etsi tämän hetken bensan hintatrendit Uudellamaalla.", expected_output="Raportti.", agent=agent)
-        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
-        st.link_button("Katso tarkat hinnat (Polttoaine.net)", "https://www.polttoaine.net/Uusimaa")
+    st.write("Voit kysyä agentilta polttoaineen hintakehityksestä tai siirtyä suoraan sivustolle.")
+    
+    # 1. AI-Agentin osuus
+    if st.button("Kysy agentilta hintatrendeistä"):
+        with st.spinner("Agentti tutkii markkinatilannetta 2026..."):
+            agent = Agent(
+                role="Energia-analyytikko",
+                goal="Analysoi polttoaineiden hintatrendit toukokuussa 2026.",
+                backstory="Olet asiantuntija, joka seuraa energiamarkkinoiden hintoja.",
+                tools=[search_tool]
+            )
+            task = Task(
+                description="Etsi tämän hetken (toukokuu 2026) polttoaineiden hintakehitys Suomessa.",
+                expected_output="Tiivis raportti hintatrendistä.",
+                agent=agent
+            )
+            st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+    
+    # 2. Suora linkki hintoihin
+    st.link_button("Katso reaaliaikaiset hinnat (Polttoaine.net)", "https://www.polttoaine.net/")
