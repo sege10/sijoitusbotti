@@ -38,14 +38,26 @@ if valinta == "📈 Sijoitusagentti":
             except Exception as e:
                 st.error(f"Haku epäonnistui: {e}")
 
-# --- 2. SALKUNHOITAJA ---
+# --- 2. SALKUNHOITAJA (Päivitetty 2026 markkinatilanteeseen) ---
 elif valinta == "💼 Salkunhoitaja":
-    st.title("💼 Salkunhoitaja")
-    summa = st.number_input("Summa (€):", value=1000)
-    if st.button("Luo salkku"):
-        agent = Agent(role="Salkunhoitaja", goal="Rakenna salkku.", backstory="Asiantuntija.", tools=[search_tool])
-        task = Task(description=f"Luo salkku {summa} eurolle. Käytä Google-hakua markkinatrendeihin.", expected_output="Salkku.", agent=agent)
-        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+    st.title("💼 Salkunhoitaja (Toukokuu 2026)")
+    summa = st.number_input("Sijoitettava summa (€):", value=1000)
+    
+    if st.button("Luo vuoden 2026 salkkuehdotus"):
+        st.write("### Markkinanäkymä 2026:")
+        st.write("""
+        * **Tekoäly (AI):** Siirrytty sovellusten käyttöön, paino teollisuusautomaatiossa.
+        * **Korkotaso:** Vakaampi, suosii yrityksiä, joilla on vahva kassavirta.
+        * **Energia:** Vetytalous ja energian varastointi korostuvat.
+        """)
+        
+        # Salkun hajautus 2026 tyyliin
+        data = {
+            "Sektori": ["AI-Infrastruktuuri", "Vety & Energian varastointi", "Kulutustavarat (Vakaat)", "Kyberturvallisuus", "Käteinen/Lyhyet korot"],
+            "Painotus": ["25%", "25%", "20%", "20%", "10%"],
+            "Summa (€)": [f"{summa*0.25:.0f}", f"{summa*0.25:.0f}", f"{summa*0.2:.0f}", f"{summa*0.2:.0f}", f"{summa*0.1:.0f}"]
+        }
+        st.table(pd.DataFrame(data))
 
 # --- 3. LIIKETALOUSSANASTO ---
 elif valinta == "📖 Liiketaloussanasto":
