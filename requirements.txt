@@ -1,9 +1,6 @@
 streamlit
 crewai
-crewai-tools
-langchain-openai
-requests
-google-search-results
-beautifulsoup4
-pandas
+crewai_tools
 yfinance
+pycoingecko
+openai
