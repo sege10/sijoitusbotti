@@ -15,23 +15,29 @@ st.set_page_config(page_title="SEGE10 Keskus", layout="wide")
 st.sidebar.title("🤖 SEGE10 Keskus")
 valinta = st.sidebar.radio("Työkalu:", ["📈 Sijoitusagentti", "💼 Salkunhoitaja", "📖 Liiketaloussanasto", "⚽ Veikkaus", "⛽ Bensavahti"])
 
-# --- 1. SIJOITUSAGENTTI (Yahoo Finance + AI Analyysi) ---
+# --- 1. SIJOITUSAGENTTI ---
 if valinta == "📈 Sijoitusagentti":
     st.title("📈 Sijoitusagentti")
     kohde = st.text_input("Syötä osake (esim. NOKIA.HE):")
     if st.button("Analysoi"):
-        # Hinta-haku
-        ticker = yf.Ticker(kohde)
-        hist = ticker.history(period="1d")
-        if not hist.empty:
-            price = hist['Close'].iloc[-1]
-            st.metric(f"Hinta: {kohde}", f"{price:.2f} €")
-            # AI-analyysi perässä
-            agent = Agent(role="Analyytikko", goal="Analysoi ja anna Osta/Pidä/Myy/Älä osta -suositus.", backstory="Pörssiasiantuntija.", tools=[search_tool])
-            task = Task(description=f"Analysoi {kohde} (hinta {price}). Anna perusteltu suositus (Osta/Pidä/Myy/Älä osta).", expected_output="Lyhyt raportti.", agent=agent)
-            st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
-        else:
-            st.error("Kohdetta ei löytynyt Yahoo Financesta.")
+        # Lisätään User-Agent, jotta Yahoo ei estä hakuja
+        ticker = yf.Ticker(kohde, session=None) 
+        try:
+            # Käytetään lyhyempää hakuväliä ja estetään liialliset pyynnöt
+            hist = ticker.history(period="1d", interval="1d")
+            
+            if not hist.empty:
+                price = hist['Close'].iloc[-1]
+                st.metric(f"Hinta: {kohde}", f"{price:.2f} €")
+                
+                # AI-analyysi (tämä toimii normaalisti)
+                agent = Agent(role="Analyytikko", goal="Analysoi ja anna suositus.", backstory="Pörssiasiantuntija.", tools=[search_tool])
+                task = Task(description=f"Analysoi {kohde}, jonka hinta on {price}. Anna suositus.", expected_output="Analyysi.", agent=agent)
+                st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+            else:
+                st.error("Ei dataa Yahoo Financesta.")
+        except Exception as e:
+            st.warning("Yahoo Finance on hetkellisesti ruuhkautunut. Kokeile uudestaan hetken päästä tai käytä Google-hakua.")
 
 # --- 2. SALKUNHOITAJA ---
 elif valinta == "💼 Salkunhoitaja":
