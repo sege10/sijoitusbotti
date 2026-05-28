@@ -1,59 +1,70 @@
 import streamlit as st
 import os
+import yfinance as yf
+from pycoingecko import CoinGeckoAPI
 from crewai import Agent, Crew, Task
 from crewai_tools import SerperDevTool
 
 # Asetukset
 os.environ["OPENAI_API_KEY"] = st.secrets.get("OPENAI_API_KEY", "")
 os.environ["SERPER_API_KEY"] = st.secrets.get("SERPER_API_KEY", "")
+cg = CoinGeckoAPI()
+search_tool = SerperDevTool()
 
 st.set_page_config(page_title="SEGE10 Keskus", layout="wide")
-valinta = st.sidebar.radio("Työkalu:", ["📈 Sijoitusagentti", "💼 Salkunhoitaja", "📖 Liiketaloussanasto", "⛽ Bensavahti"])
+st.sidebar.title("🤖 SEGE10 Keskus")
+valinta = st.sidebar.radio("Työkalu:", ["📈 Sijoitusagentti", "💼 Salkunhoitaja", "📖 Liiketaloussanasto", "⚽ Veikkaus", "⛽ Bensavahti"])
 
-# --- 1. SIJOITUSAGENTTI ---
+# --- 1. SIJOITUSAGENTTI (Yahoo Finance + AI Analyysi) ---
 if valinta == "📈 Sijoitusagentti":
     st.title("📈 Sijoitusagentti")
-    kohde = st.text_input("Syötä yrityksen nimi:")
-    if st.button("Käynnistä tekoälyanalyysi"):
-        with st.spinner("Agentti tutkii markkinaa..."):
-            try:
-                search_tool = SerperDevTool()
-                agent = Agent(role="Sijoitusanalyytikko", goal="Anna tarkka analyysi ja sijoitussuositus.", backstory="Olet ammattimainen pörssianalyytikko.", tools=[search_tool])
-                task = Task(description=f"Etsi {kohde} kurssitiedot, tunnusluvut ja anna perusteltu Osta/Myy-suositus.", expected_output="Analyysiraportti", agent=agent)
-                result = Crew(agents=[agent], tasks=[task]).kickoff()
-                st.write(str(result))
-            except Exception as e:
-                st.error(f"Agentti-virhe: {e}")
+    kohde = st.text_input("Syötä osake (esim. NOKIA.HE):")
+    if st.button("Analysoi"):
+        # Hinta-haku
+        ticker = yf.Ticker(kohde)
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            price = hist['Close'].iloc[-1]
+            st.metric(f"Hinta: {kohde}", f"{price:.2f} €")
+            # AI-analyysi perässä
+            agent = Agent(role="Analyytikko", goal="Analysoi ja anna Osta/Pidä/Myy/Älä osta -suositus.", backstory="Pörssiasiantuntija.", tools=[search_tool])
+            task = Task(description=f"Analysoi {kohde} (hinta {price}). Anna perusteltu suositus (Osta/Pidä/Myy/Älä osta).", expected_output="Lyhyt raportti.", agent=agent)
+            st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+        else:
+            st.error("Kohdetta ei löytynyt Yahoo Financesta.")
 
 # --- 2. SALKUNHOITAJA ---
 elif valinta == "💼 Salkunhoitaja":
     st.title("💼 Salkunhoitaja")
-    summa = st.number_input("Sijoitettava summa (€):", value=1000)
-    riski = st.select_slider("Riski:", ["Varovainen", "Tasapainoinen", "Kasvuhakuinen"])
-    if st.button("Luo salkkuehdotus"):
-        agent = Agent(role="Senior Salkunhoitaja", goal="Rakenna optimaalinen salkku.", backstory="Olet kokenut pankin salkunhoitaja.")
-        task = Task(description=f"Luo {riski}-riskitason salkku {summa} eurolle. Listaa konkreettiset kohteet.", expected_output="Salkkuehdotus", agent=agent)
+    summa = st.number_input("Summa (€):", value=1000)
+    if st.button("Luo salkku"):
+        agent = Agent(role="Salkunhoitaja", goal="Rakenna salkku.", backstory="Asiantuntija.", tools=[search_tool])
+        task = Task(description=f"Luo salkku {summa} eurolle. Käytä Google-hakua markkinatrendeihin.", expected_output="Salkku.", agent=agent)
         st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
 
-# --- 3. LIIKETALOUSSANASTO (Hakukentällä) ---
+# --- 3. LIIKETALOUSSANASTO ---
 elif valinta == "📖 Liiketaloussanasto":
     st.title("📖 Liiketaloussanasto")
-    sanasto = {
-        "liikevaihto": "Yrityksen myyntien yhteenlaskettu arvo tiettynä aikana.",
-        "käyttökate": "EBITDA. Kertoo operatiivisen toiminnan kannattavuudesta ennen poistoja.",
-        "inbound": "Myyntitapa, jossa asiakas löytää yrityksen itse.",
-        "roi": "Sijoitetun pääoman tuotto-prosentti.",
-        "likviditeetti": "Yrityksen kyky maksaa lyhytaikaiset velat heti.",
-        "tase": "Yrityksen varojen ja velkojen tila tiettynä ajanhetkenä."
-    }
-    haku = st.text_input("Kirjoita termi (esim. liikevaihto):").lower()
-    if haku:
-        if haku in sanasto:
-            st.success(f"**{haku.capitalize()}**: {sanasto[haku]}")
-        else:
-            st.error("Termiä ei löytynyt.")
+    term = st.text_input("Etsi termiä (esim. liikevaihto):")
+    if st.button("Hae määritelmä"):
+        agent = Agent(role="Opettaja", goal="Selitä termi.", backstory="Taloustieteen professori.", tools=[search_tool])
+        task = Task(description=f"Selitä lyhyesti ja selkeästi termi: {term}.", expected_output="Määritelmä.", agent=agent)
+        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
 
-# --- 4. BENSAVAHTI (Suora linkki) ---
+# --- 4. VEIKKAUSASIANTUNTIJA ---
+elif valinta == "⚽ Veikkaus":
+    st.title("⚽ Veikkausasiantuntija")
+    ottelu = st.text_input("Ottelu:")
+    if st.button("Analysoi ottelu"):
+        agent = Agent(role="Vedonlyöjä", goal="Valitse voittaja.", backstory="Vedonlyönnin ammattilainen.", tools=[search_tool])
+        task = Task(description=f"Analysoi ottelu {ottelu} ja anna pelivalinta (1X2).", expected_output="Analyysi.", agent=agent)
+        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+
+# --- 5. BENSAVAHTI ---
 elif valinta == "⛽ Bensavahti":
     st.title("⛽ Bensavahti")
-    st.link_button("Hae Uudenmaan bensahinnat tästä", "https://www.polttoaine.net/Uusimaa")
+    if st.button("Hae päivän trendit"):
+        agent = Agent(role="Bensavahti", goal="Tarkista bensan hinnan kehitys.", backstory="Analyytikko.", tools=[search_tool])
+        task = Task(description="Etsi tämän hetken bensan hintatrendit Uudellamaalla.", expected_output="Raportti.", agent=agent)
+        st.write(str(Crew(agents=[agent], tasks=[task]).kickoff()))
+        st.link_button("Katso tarkat hinnat (Polttoaine.net)", "https://www.polttoaine.net/Uusimaa")
